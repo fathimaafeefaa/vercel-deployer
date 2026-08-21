@@ -281,9 +281,11 @@ onMounted(() => {
                 </span>
               </div>
               <div class="flex gap-2 shrink-0">
-                <a :href="data.url.startsWith('http') ? data.url : `https://${data.url}`" target="_blank" rel="noopener" class="bg-blue-main border border-blue-main rounded-md text-white text-xs px-3 py-1.25 no-underline transition-colors hover:bg-blue-main-hover hover:border-blue-main-hover">
-                  {{ data.uid.startsWith('gh-') ? 'View Run Logs ↗' : 'Preview URL ↗' }}
-                </a>
+                <template v-if="data.url">
+                  <a :href="data.url.startsWith('http') ? data.url : `https://${data.url}`" target="_blank" rel="noopener" class="bg-blue-main border border-blue-main rounded-md text-white text-xs px-3 py-1.25 no-underline transition-colors hover:bg-blue-main-hover hover:border-blue-main-hover">
+                    {{ data.uid?.startsWith('gh-') && data.state !== 'READY' ? 'View Run Logs ↗' : 'Preview URL ↗' }}
+                  </a>
+                </template>
                 <button
                   v-if="CANCELLABLE.has(data.state?.toUpperCase())"
                   :disabled="cancelling"
@@ -295,146 +297,157 @@ onMounted(() => {
               </div>
             </div>
 
-            <!-- Meta Strip -->
-            <div class="bg-page border border-border-secondary rounded-lg px-4 py-3 flex flex-col gap-2.5">
-              <!-- URL -->
-              <div class="flex items-center gap-4 text-xs">
-                <span class="text-text-quaternary font-medium uppercase tracking-wider w-20 shrink-0">{{ data.uid.startsWith('gh-') ? 'Run Logs' : 'Preview URL' }}</span>
-                <a :href="data.url.startsWith('http') ? data.url : `https://${data.url}`" target="_blank" rel="noopener" class="text-text-primary font-mono no-underline hover:underline hover:text-text-primary flex-1 truncate">{{ data.url }}</a>
-                <button
-                  @click="copy(previewUrl, 'url')"
-                  class="bg-transparent border border-border-primary rounded-sm text-text-tertiary px-1.5 py-px cursor-pointer transition-colors hover:border-border-focus hover:text-text-secondary shrink-0"
-                  :class="{ 'border-green-border text-green-text': copied === 'url' }"
-                >
-                  {{ copied === 'url' ? 'Copied!' : 'Copy' }}
-                </button>
-              </div>
-
-              <!-- Branch -->
-              <div v-if="data.branch" class="flex items-center gap-4 text-xs border-t border-border-secondary pt-2.5">
-                <span class="text-text-quaternary font-medium uppercase tracking-wider w-20 shrink-0">Branch</span>
-                <a v-if="data.repoUrl" :href="`${data.repoUrl}/tree/${data.branch}`" target="_blank" rel="noopener" class="text-text-secondary font-mono no-underline hover:underline hover:text-text-primary flex-1 truncate">{{ data.branch }}</a>
-                <span v-else class="text-text-secondary font-mono flex-1 truncate">{{ data.branch }}</span>
-                <button
-                  @click="copy(data.branch, 'branch')"
-                  class="bg-transparent border border-border-primary rounded-sm text-text-tertiary px-1.5 py-px cursor-pointer transition-colors hover:border-border-focus hover:text-text-secondary shrink-0"
-                  :class="{ 'border-green-border text-green-text': copied === 'branch' }"
-                >
-                  {{ copied === 'branch' ? '✓' : 'Copy' }}
-                </button>
-              </div>
-
-              <!-- Commit -->
-              <div v-if="data.commitSha" class="flex items-center gap-4 text-xs border-t border-border-secondary pt-2.5">
-                <span class="text-text-quaternary font-medium uppercase tracking-wider w-20 shrink-0">Commit ID</span>
-                <a v-if="data.repoUrl" :href="`${data.repoUrl}/commit/${data.commitSha}`" target="_blank" rel="noopener" class="bg-btn border border-border-tertiary rounded-[3px] text-text-tertiary font-mono px-1.5 py-px no-underline hover:text-text-secondary">{{ data.commitSha.slice(0, 7) }}</a>
-                <code v-else class="bg-btn border border-border-tertiary rounded-[3px] text-text-tertiary font-mono px-1.5 py-px">{{ data.commitSha.slice(0, 7) }}</code>
-                <span class="text-text-tertiary truncate flex-1" :title="data.commitMessage ?? undefined">{{ data.commitMessage }}</span>
-                <button
-                  @click="copy(data.commitSha, 'sha')"
-                  class="bg-transparent border border-border-primary rounded-sm text-text-tertiary px-1.5 py-px cursor-pointer transition-colors hover:border-border-focus hover:text-text-secondary shrink-0"
-                  :class="{ 'border-green-border text-green-text': copied === 'sha' }"
-                >
-                  {{ copied === 'sha' ? '✓' : 'Copy' }}
-                </button>
-              </div>
-
-              <!-- Author -->
-              <div v-if="data.commitAuthor" class="flex items-center gap-4 text-xs border-t border-border-secondary pt-2.5">
-                <span class="text-text-quaternary font-medium uppercase tracking-wider w-20 shrink-0">Author</span>
-                <span class="text-text-secondary flex-1 truncate">
-                  {{ data.commitAuthor }} <span v-if="data.createdAt" class="text-text-tertiary">· {{ formatTs(data.createdAt) }}</span>
-                </span>
-                <span v-if="data.buildDurationMs" class="text-text-tertiary shrink-0">built in {{ formatDuration(data.buildDurationMs) }}</span>
-              </div>
+            <div v-if="data.uid?.startsWith('gh-')" class="flex flex-col items-center justify-center py-20 text-text-tertiary text-sm gap-4 bg-page border border-border-secondary rounded-lg mt-2">
+              <Icon name="lucide:github" class="h-10 w-10 text-text-secondary" />
+              <p>This deployment is running with GitHub Actions.</p>
+              <p class="text-xs text-text-quaternary">Check the <a :href="data.url.startsWith('http') ? data.url : `https://${data.url}`" target="_blank" rel="noopener" class="text-blue-text hover:underline">Run Logs on GitHub</a> for more details.</p>
             </div>
 
-            <!-- Integrations Cards -->
-            <div v-if="data.prId || jiraKey" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <!-- GitHub PR -->
-              <div
-                v-if="data.prId"
-                @click="ghPr && openLink(ghPr.url)"
-                class="bg-page border border-border-secondary rounded-lg px-4 py-3 transition-colors hover:border-border-primary"
-                :class="{ 'cursor-pointer': !!ghPr }"
-              >
-                <div class="flex items-center gap-2 mb-2">
-                  <Icon name="lucide:git-pull-request" class="text-text-quaternary shrink-0 h-3.5 w-3.5" />
-                  <span class="text-text-quaternary text-[10px] font-semibold tracking-[0.06em] uppercase flex-1">GitHub PR</span>
-                  <div v-if="ghPrPending" class="animate-spin h-3 w-3 border border-border-primary border-t-border-focus rounded-full" />
-                </div>
-
-                <div v-if="ghPrPending" class="text-text-tertiary text-xs italic">Loading...</div>
-                <div v-else-if="ghPrError" class="text-red-text text-xs">Failed to load PR</div>
-                <div v-else-if="ghPr" class="space-y-1.5">
-                  <div class="flex items-center gap-2">
-                    <span class="border border-transparent rounded-sm inline-block text-[9px] font-semibold px-1 py-[0.5px] uppercase" :class="prStateClass(ghPr)">{{ prStateLabel(ghPr) }}</span>
-                    <span class="text-text-secondary text-xs truncate">#{{ ghPr.number }}</span>
-                  </div>
-                  <div class="text-text-primary text-xs font-medium truncate" :title="ghPr.title">{{ ghPr.title }}</div>
-
-                  <!-- Review Status -->
-                  <div class="flex items-center gap-1.5 text-[11px] mt-1">
-                    <Icon v-if="ghPr.reviews.approved > 0 && ghPr.reviews.changesRequested === 0" name="lucide:check-circle" class="h-3.5 w-3.5 text-emerald-400" />
-                    <Icon v-else-if="ghPr.reviews.changesRequested > 0" name="lucide:alert-circle" class="h-3.5 w-3.5 text-rose-400" />
-                    <Icon v-else name="lucide:eye" class="h-3.5 w-3.5 text-text-quaternary" />
-
-                    <span v-if="ghPr.reviews.approved > 0 && ghPr.reviews.changesRequested === 0" class="font-medium text-emerald-400">
-                      Approved ({{ ghPr.reviews.approved }})
-                    </span>
-                    <span v-else-if="ghPr.reviews.changesRequested > 0" class="font-medium text-rose-400">
-                      Changes Requested ({{ ghPr.reviews.changesRequested }})
-                    </span>
-                    <span v-else class="text-text-tertiary">
-                      No reviews
-                    </span>
-                  </div>
-
-                  <!-- PR Labels -->
-                  <div v-if="ghPr.labels && ghPr.labels.length > 0" class="flex flex-wrap gap-1 mt-2">
-                    <span
-                      v-for="l in ghPr.labels"
-                      :key="l.name"
-                      class="text-[9px] font-semibold px-1.5 py-px rounded-[3px] border"
-                      :style="{
-                        backgroundColor: `#${l.color}15`,
-                        borderColor: `#${l.color}35`,
-                        color: `#${l.color}`
-                      }"
+            <template v-else>
+              <!-- Meta Strip -->
+              <div class="bg-page border border-border-secondary rounded-lg px-4 py-3 flex flex-col gap-2.5 mt-4">
+                <!-- URL -->
+                <div class="flex items-center gap-4 text-xs">
+                  <span class="text-text-quaternary font-medium uppercase tracking-wider w-20 shrink-0">Preview URL</span>
+                  <template v-if="data.url">
+                    <a :href="data.url.startsWith('http') ? data.url : `https://${data.url}`" target="_blank" rel="noopener" class="text-text-primary font-mono no-underline hover:underline hover:text-text-primary flex-1 truncate">{{ data.url }}</a>
+                    <button
+                      @click="copy(previewUrl, 'url')"
+                      class="bg-transparent border border-border-primary rounded-sm text-text-tertiary px-1.5 py-px cursor-pointer transition-colors hover:border-border-focus hover:text-text-secondary shrink-0"
+                      :class="{ 'border-green-border text-green-text': copied === 'url' }"
                     >
-                      {{ l.name }}
-                    </span>
+                      {{ copied === 'url' ? 'Copied!' : 'Copy' }}
+                    </button>
+                  </template>
+                  <span v-else class="text-text-tertiary font-mono flex-1 truncate">N/A</span>
+                </div>
+
+                <!-- Branch -->
+                <div v-if="data.branch" class="flex items-center gap-4 text-xs border-t border-border-secondary pt-2.5">
+                  <span class="text-text-quaternary font-medium uppercase tracking-wider w-20 shrink-0">Branch</span>
+                  <a v-if="data.repoUrl" :href="`${data.repoUrl}/tree/${data.branch}`" target="_blank" rel="noopener" class="text-text-secondary font-mono no-underline hover:underline hover:text-text-primary flex-1 truncate">{{ data.branch }}</a>
+                  <span v-else class="text-text-secondary font-mono flex-1 truncate">{{ data.branch }}</span>
+                  <button
+                    @click="copy(data.branch, 'branch')"
+                    class="bg-transparent border border-border-primary rounded-sm text-text-tertiary px-1.5 py-px cursor-pointer transition-colors hover:border-border-focus hover:text-text-secondary shrink-0"
+                    :class="{ 'border-green-border text-green-text': copied === 'branch' }"
+                  >
+                    {{ copied === 'branch' ? '✓' : 'Copy' }}
+                  </button>
+                </div>
+
+                <!-- Commit -->
+                <div v-if="data.commitSha" class="flex items-center gap-4 text-xs border-t border-border-secondary pt-2.5">
+                  <span class="text-text-quaternary font-medium uppercase tracking-wider w-20 shrink-0">Commit ID</span>
+                  <a v-if="data.repoUrl" :href="`${data.repoUrl}/commit/${data.commitSha}`" target="_blank" rel="noopener" class="bg-btn border border-border-tertiary rounded-[3px] text-text-tertiary font-mono px-1.5 py-px no-underline hover:text-text-secondary">{{ data.commitSha.slice(0, 7) }}</a>
+                  <code v-else class="bg-btn border border-border-tertiary rounded-[3px] text-text-tertiary font-mono px-1.5 py-px">{{ data.commitSha.slice(0, 7) }}</code>
+                  <span class="text-text-tertiary truncate flex-1" :title="data.commitMessage ?? undefined">{{ data.commitMessage }}</span>
+                  <button
+                    @click="copy(data.commitSha, 'sha')"
+                    class="bg-transparent border border-border-primary rounded-sm text-text-tertiary px-1.5 py-px cursor-pointer transition-colors hover:border-border-focus hover:text-text-secondary shrink-0"
+                    :class="{ 'border-green-border text-green-text': copied === 'sha' }"
+                  >
+                    {{ copied === 'sha' ? '✓' : 'Copy' }}
+                  </button>
+                </div>
+
+                <!-- Author -->
+                <div v-if="data.commitAuthor" class="flex items-center gap-4 text-xs border-t border-border-secondary pt-2.5">
+                  <span class="text-text-quaternary font-medium uppercase tracking-wider w-20 shrink-0">Author</span>
+                  <span class="text-text-secondary flex-1 truncate">
+                    {{ data.commitAuthor }} <span v-if="data.createdAt" class="text-text-tertiary">· {{ formatTs(data.createdAt) }}</span>
+                  </span>
+                  <span v-if="data.buildDurationMs" class="text-text-tertiary shrink-0">built in {{ formatDuration(data.buildDurationMs) }}</span>
+                </div>
+              </div>
+
+              <!-- Integrations Cards -->
+              <div v-if="data.prId || jiraKey" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- GitHub PR -->
+                <div
+                  v-if="data.prId"
+                  @click="ghPr && openLink(ghPr.url)"
+                  class="bg-page border border-border-secondary rounded-lg px-4 py-3 transition-colors hover:border-border-primary"
+                  :class="{ 'cursor-pointer': !!ghPr }"
+                >
+                  <div class="flex items-center gap-2 mb-2">
+                    <Icon name="lucide:git-pull-request" class="text-text-quaternary shrink-0 h-3.5 w-3.5" />
+                    <span class="text-text-quaternary text-[10px] font-semibold tracking-[0.06em] uppercase flex-1">GitHub PR</span>
+                    <div v-if="ghPrPending" class="animate-spin h-3 w-3 border border-border-primary border-t-border-focus rounded-full" />
+                  </div>
+
+                  <div v-if="ghPrPending" class="text-text-tertiary text-xs italic">Loading...</div>
+                  <div v-else-if="ghPrError" class="text-red-text text-xs">Failed to load PR</div>
+                  <div v-else-if="ghPr" class="space-y-1.5">
+                    <div class="flex items-center gap-2">
+                      <span class="border border-transparent rounded-sm inline-block text-[9px] font-semibold px-1 py-[0.5px] uppercase" :class="prStateClass(ghPr)">{{ prStateLabel(ghPr) }}</span>
+                      <span class="text-text-secondary text-xs truncate">#{{ ghPr.number }}</span>
+                    </div>
+                    <div class="text-text-primary text-xs font-medium truncate" :title="ghPr.title">{{ ghPr.title }}</div>
+
+                    <!-- Review Status -->
+                    <div class="flex items-center gap-1.5 text-[11px] mt-1">
+                      <Icon v-if="ghPr.reviews.approved > 0 && ghPr.reviews.changesRequested === 0" name="lucide:check-circle" class="h-3.5 w-3.5 text-emerald-400" />
+                      <Icon v-else-if="ghPr.reviews.changesRequested > 0" name="lucide:alert-circle" class="h-3.5 w-3.5 text-rose-400" />
+                      <Icon v-else name="lucide:eye" class="h-3.5 w-3.5 text-text-quaternary" />
+
+                      <span v-if="ghPr.reviews.approved > 0 && ghPr.reviews.changesRequested === 0" class="font-medium text-emerald-400">
+                        Approved ({{ ghPr.reviews.approved }})
+                      </span>
+                      <span v-else-if="ghPr.reviews.changesRequested > 0" class="font-medium text-rose-400">
+                        Changes Requested ({{ ghPr.reviews.changesRequested }})
+                      </span>
+                      <span v-else class="text-text-tertiary">
+                        No reviews
+                      </span>
+                    </div>
+
+                    <!-- PR Labels -->
+                    <div v-if="ghPr.labels && ghPr.labels.length > 0" class="flex flex-wrap gap-1 mt-2">
+                      <span
+                        v-for="l in ghPr.labels"
+                        :key="l.name"
+                        class="text-[9px] font-semibold px-1.5 py-px rounded-[3px] border"
+                        :style="{
+                          backgroundColor: `#${l.color}15`,
+                          borderColor: `#${l.color}35`,
+                          color: `#${l.color}`
+                        }"
+                      >
+                        {{ l.name }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Jira Ticket -->
+                <div
+                  v-if="jiraKey"
+                  @click="jiraIssue && openLink(jiraIssue.url)"
+                  class="bg-page border border-border-secondary rounded-lg px-4 py-3 transition-colors hover:border-border-primary"
+                  :class="{ 'cursor-pointer': !!jiraIssue }"
+                >
+                  <div class="flex items-center gap-2 mb-2">
+                    <Icon name="logos:jira" class="shrink-0 h-3.5 w-3.5" />
+                    <span class="text-text-quaternary text-[10px] font-semibold tracking-[0.06em] uppercase flex-1">Jira Issue</span>
+                    <div v-if="jiraPending" class="animate-spin h-3 w-3 border border-border-primary border-t-border-focus rounded-full" />
+                  </div>
+
+                  <div v-if="jiraPending" class="text-text-tertiary text-xs italic">Loading...</div>
+                  <div v-else-if="jiraError" class="text-red-text text-xs">Failed to load issue</div>
+                  <div v-else-if="jiraIssue" class="space-y-1.5">
+                    <div class="flex items-center gap-2">
+                      <span class="border border-transparent rounded-sm inline-block text-[9px] font-semibold px-1 py-[0.5px] uppercase" :class="jiraStatusClass(jiraIssue)">{{ jiraIssue.status }}</span>
+                      <span class="text-blue-text font-mono text-[10px] font-semibold uppercase">{{ jiraIssue.key }}</span>
+                    </div>
+                    <div class="text-text-primary text-xs font-medium truncate" :title="jiraIssue.summary">{{ jiraIssue.summary }}</div>
                   </div>
                 </div>
               </div>
 
-              <!-- Jira Ticket -->
-              <div
-                v-if="jiraKey"
-                @click="jiraIssue && openLink(jiraIssue.url)"
-                class="bg-page border border-border-secondary rounded-lg px-4 py-3 transition-colors hover:border-border-primary"
-                :class="{ 'cursor-pointer': !!jiraIssue }"
-              >
-                <div class="flex items-center gap-2 mb-2">
-                  <Icon name="logos:jira" class="shrink-0 h-3.5 w-3.5" />
-                  <span class="text-text-quaternary text-[10px] font-semibold tracking-[0.06em] uppercase flex-1">Jira Issue</span>
-                  <div v-if="jiraPending" class="animate-spin h-3 w-3 border border-border-primary border-t-border-focus rounded-full" />
-                </div>
-
-                <div v-if="jiraPending" class="text-text-tertiary text-xs italic">Loading...</div>
-                <div v-else-if="jiraError" class="text-red-text text-xs">Failed to load issue</div>
-                <div v-else-if="jiraIssue" class="space-y-1.5">
-                  <div class="flex items-center gap-2">
-                    <span class="border border-transparent rounded-sm inline-block text-[9px] font-semibold px-1 py-[0.5px] uppercase" :class="jiraStatusClass(jiraIssue)">{{ jiraIssue.status }}</span>
-                    <span class="text-blue-text font-mono text-[10px] font-semibold uppercase">{{ jiraIssue.key }}</span>
-                  </div>
-                  <div class="text-text-primary text-xs font-medium truncate" :title="jiraIssue.summary">{{ jiraIssue.summary }}</div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Build Logs -->
-            <LogViewer :uid="props.uid!" :project-id="props.projectId!" />
+              <!-- Build Logs -->
+              <LogViewer :uid="props.uid!" :project-id="props.projectId!" />
+            </template>
           </template>
         </div>
       </div>
