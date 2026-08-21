@@ -299,7 +299,11 @@ onMounted(() => {
 
             <div v-if="data.uid?.startsWith('gh-')" class="flex flex-col items-center justify-center py-20 text-text-tertiary text-sm gap-4 bg-page border border-border-secondary rounded-lg mt-2">
               <Icon name="lucide:github" class="h-10 w-10 text-text-secondary" />
-              <p>This deployment is running with GitHub Actions.</p>
+              <p>
+                This deployment
+                {{ data.state === 'READY' ? 'completed successfully' : (data.state === 'ERROR' ? 'failed' : 'is running') }}
+                with GitHub Actions.
+              </p>
               <p class="text-xs text-text-quaternary">Check the <a :href="data.url.startsWith('http') ? data.url : `https://${data.url}`" target="_blank" rel="noopener" class="text-blue-text hover:underline">Run Logs on GitHub</a> for more details.</p>
             </div>
 

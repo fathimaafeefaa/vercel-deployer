@@ -11,7 +11,7 @@ export interface DeployOptions {
 export interface DeploymentResult {
   url: string
   deploymentId?: string
-  status: 'success' | 'failed' | 'pending'
+  status: 'success' | 'failed' | 'pending' | 'in_progress'
   message?: string
 }
 
@@ -39,6 +39,7 @@ export class GitHubActionsProvider implements DeploymentProvider {
     }
 
     try {
+      const dispatchTime = Date.now()
       // Dispatch the workflow via GitHub REST API (workflow_dispatch)
       const response = await fetch(
         `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${workflowFile}/dispatches`,
@@ -60,7 +61,7 @@ export class GitHubActionsProvider implements DeploymentProvider {
       // GitHub returns 204 No Content on successful dispatch
       if (response.status === 204) {
         // After dispatching, find the newly created run to get its ID for polling
-        const runId = await this.findLatestRunId(token, owner, repo, options.branch)
+        const runId = await this.findLatestRunId(token, owner, repo, options.branch, dispatchTime)
         return {
           url: `https://github.com/${owner}/${repo}/actions`,
           deploymentId: runId || undefined,
@@ -93,29 +94,32 @@ export class GitHubActionsProvider implements DeploymentProvider {
    * After dispatching a workflow, poll briefly to find the newly created run ID
    * so we can track its status in the UI.
    */
-  private async findLatestRunId(token: string, owner: string, repo: string, branch: string): Promise<string | null> {
-    // Wait a moment for GitHub to create the run
-    await new Promise(resolve => setTimeout(resolve, 2000))
+  private async findLatestRunId(token: string, owner: string, repo: string, branch: string, dispatchTime: number): Promise<string | null> {
+    // Poll up to 5 times
+    for (let i = 0; i < 5; i++) {
+      await new Promise(resolve => setTimeout(resolve, 2000))
 
-    try {
-      const response = await fetch(
-        `https://api.github.com/repos/${owner}/${repo}/actions/runs?branch=${encodeURIComponent(branch)}&per_page=1&event=workflow_dispatch`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: 'application/vnd.github+json',
-            'X-GitHub-Api-Version': '2022-11-28',
-          },
+      try {
+        const response = await fetch(
+          `https://api.github.com/repos/${owner}/${repo}/actions/runs?branch=${encodeURIComponent(branch)}&per_page=5&event=workflow_dispatch`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: 'application/vnd.github+json',
+              'X-GitHub-Api-Version': '2022-11-28',
+            },
+          }
+        )
+        if (response.ok) {
+          const data = await response.json() as any
+          const recentRun = data.workflow_runs?.find((r: any) => new Date(r.created_at).getTime() > dispatchTime - 5000)
+          if (recentRun) {
+            return String(recentRun.id)
+          }
         }
-      )
-      if (response.ok) {
-        const data = await response.json() as any
-        if (data.workflow_runs?.length > 0) {
-          return String(data.workflow_runs[0].id)
-        }
+      } catch {
+        // Non-critical — we just won't have a run ID for polling
       }
-    } catch {
-      // Non-critical — we just won't have a run ID for polling
     }
     return null
   }
@@ -159,7 +163,7 @@ export class GitHubActionsProvider implements DeploymentProvider {
       return {
         url: htmlUrl,
         deploymentId: runId,
-        status: 'pending',
+        status: run.status === 'in_progress' ? 'in_progress' : 'pending',
         message: run.status === 'in_progress' ? 'Building…' : `Status: ${run.status}`,
       }
     } catch (err: any) {

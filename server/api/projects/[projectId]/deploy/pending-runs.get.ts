@@ -1,5 +1,6 @@
-import { defineEventHandler, getRouterParam, createError } from 'h3'
+import { defineEventHandler, getRouterParam, createError } from "h3"
 import { getProjectById } from '~~/server/utils/projects'
+import { createGithubApi } from '~~/server/utils/api'
 
 interface GitHubWorkflowRun {
   id: number
@@ -29,41 +30,21 @@ export default defineEventHandler(async (event) => {
     return { runs: [] }
   }
 
-  const { token, owner, repo } = project.github
+  const githubApi = createGithubApi(project)
 
   // Fetch both queued and in_progress runs in parallel
-  const [queuedRes, inProgressRes] = await Promise.all([
-    fetch(
-      `https://api.github.com/repos/${owner}/${repo}/actions/runs?status=queued&per_page=10`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/vnd.github+json',
-          'X-GitHub-Api-Version': '2022-11-28',
-        },
-      }
-    ),
-    fetch(
-      `https://api.github.com/repos/${owner}/${repo}/actions/runs?status=in_progress&per_page=10`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/vnd.github+json',
-          'X-GitHub-Api-Version': '2022-11-28',
-        },
-      }
-    ),
+  const [queuedRes, inProgressRes] = await Promise.allSettled([
+    githubApi<GitHubRunsResponse>('/actions/runs', { query: { status: 'queued', event: 'workflow_dispatch', per_page: 10 } }),
+    githubApi<GitHubRunsResponse>('/actions/runs', { query: { status: 'in_progress', event: 'workflow_dispatch', per_page: 10 } }),
   ])
 
   const allRuns: GitHubWorkflowRun[] = []
 
-  if (queuedRes.ok) {
-    const data = await queuedRes.json() as GitHubRunsResponse
-    allRuns.push(...data.workflow_runs)
+  if (queuedRes.status === 'fulfilled') {
+    allRuns.push(...queuedRes.value.workflow_runs)
   }
-  if (inProgressRes.ok) {
-    const data = await inProgressRes.json() as GitHubRunsResponse
-    allRuns.push(...data.workflow_runs)
+  if (inProgressRes.status === 'fulfilled') {
+    allRuns.push(...inProgressRes.value.workflow_runs)
   }
 
   // Deduplicate by ID and sort newest first

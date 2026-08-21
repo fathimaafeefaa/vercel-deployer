@@ -54,13 +54,14 @@ export function useDeployActions(
       uid: phantomUid,
       state: 'QUEUED',
       target: original?.target ?? null,
-      created: Date.now(),
-      creator: { uid: '', email: '41898282+github-actions[bot]@users.noreply.github.com', username: 'github-actions[bot]', githubLogin: 'github-actions' },
+      createdAt: Date.now(),
+      deployer: 'github-actions[bot]',
       inspectorUrl: null,
-      commit: original?.commit ?? { message: `Deploying branch: ${branch}`, short: '', url: '' },
+      commitSha: original?.commitSha ?? null,
+      commitMessage: original?.commitMessage ?? `Deploying branch: ${branch}`,
       commitAuthor: original?.commitAuthor ?? 'github-actions[bot]',
       branch,
-      _isPhantom: true,
+      _pending: true,
       _originUid: originUid || phantomUid,
     })
 
@@ -227,20 +228,13 @@ export function useDeployActions(
           state: run.status === 'in_progress' ? 'BUILDING' : 'QUEUED',
           target: null,
           createdAt: run.createdAt,
-          created: run.createdAt,
-          creator: {
-            uid: '',
-            email: '',
-            username: run.actor || 'github-actions[bot]',
-            githubLogin: run.actor || 'github-actions',
-          },
+          deployer: run.actor || 'github-actions[bot]',
           inspectorUrl: run.url,
-          commit: { message: `${run.name}`, short: run.commitSha?.slice(0, 7) || '', url: '' },
           commitSha: run.commitSha?.slice(0, 7) || null,
           commitMessage: run.name,
           commitAuthor: run.actor || 'github-actions[bot]',
           branch: run.branch,
-          _isPhantom: true,
+          _pending: true,
           _originUid: phantomUid,
           _githubRunUrl: run.url,
         })
@@ -257,6 +251,12 @@ export function useDeployActions(
   watch(projectId, (id) => {
     if (id) fetchPendingRuns()
   }, { immediate: true })
+
+  onUnmounted(() => {
+    for (const [uid] of ghTimers) {
+      stopPolling(uid)
+    }
+  })
 
   return {
     actionStates,

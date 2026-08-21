@@ -1,6 +1,6 @@
 import { defineEventHandler, readBody, getRouterParam, createError } from 'h3'
 import { getProjectById } from '~~/server/utils/projects'
-import { validateBranch } from '~~/server/utils/validation'
+import { validateBranch, validateWorkflowFile } from '~~/server/utils/validation'
 import { FreeDeployProvider } from '~~/server/utils/deployment'
 
 export default defineEventHandler(async (event) => {
@@ -22,6 +22,7 @@ export default defineEventHandler(async (event) => {
 
   const branch = body?.branch || 'main'
   validateBranch(branch)
+  if (body?.workflowFile) validateWorkflowFile(body.workflowFile)
 
   const provider = new FreeDeployProvider()
   const result = await provider.deploy(project, {

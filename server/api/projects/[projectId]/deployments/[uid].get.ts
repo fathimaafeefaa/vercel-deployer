@@ -1,5 +1,5 @@
 import { defineEventHandler, getRouterParam, createError } from 'h3'
-import { createVercelApi } from '~~/server/utils/api'
+import { createVercelApi, createGithubApi } from '~~/server/utils/api'
 import { getProjectById } from '~~/server/utils/projects'
 import { validateUid } from '~~/server/utils/validation'
 
@@ -32,36 +32,33 @@ export default defineEventHandler(async (event) => {
   if (uid.startsWith('gh-')) {
     if (uid.startsWith('gh-run-') && project.github) {
       const runId = uid.replace('gh-run-', '')
-      const { token, owner, repo } = project.github
+      if (!/^\d+$/.test(runId)) throw createError({ statusCode: 400, message: 'Invalid run ID format' })
+      const githubApi = createGithubApi(project)
+      const { owner, repo } = project.github
       try {
-        const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/actions/runs/${runId}`, {
-          headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
-        })
-        if (response.ok) {
-          const run = await response.json() as any
-          return {
-            uid,
-            name: run.name,
-            state: run.status === 'completed' ? (run.conclusion === 'success' ? 'READY' : 'ERROR') : 'BUILDING',
-            url: run.html_url,
-            target: null,
-            createdAt: new Date(run.created_at).getTime(),
-            buildingAt: new Date(run.run_started_at || run.created_at).getTime(),
-            readyAt: run.updated_at ? new Date(run.updated_at).getTime() : null,
-            buildDurationMs: run.updated_at ? new Date(run.updated_at).getTime() - new Date(run.run_started_at || run.created_at).getTime() : null,
-            inspectorUrl: run.html_url,
-            branch: run.head_branch,
-            commitSha: run.head_sha,
-            commitMessage: run.head_commit?.message || run.name,
-            commitAuthor: run.head_commit?.author?.name || run.actor?.login || 'github-actions',
-            repoUrl: `https://github.com/${owner}/${repo}`,
-            prId: null,
-            ghOrg: owner,
-            ghRepo: repo,
-            regions: [],
-            creator: run.actor?.login || 'github-actions',
+        const run = await githubApi<any>(`/actions/runs/${runId}`)
+        return {
+          uid,
+          name: run.name,
+          state: run.status === 'completed' ? (run.conclusion === 'success' ? 'READY' : 'ERROR') : 'BUILDING',
+          url: run.html_url,
+          target: null,
+          createdAt: new Date(run.created_at).getTime(),
+          buildingAt: new Date(run.run_started_at || run.created_at).getTime(),
+          readyAt: run.updated_at ? new Date(run.updated_at).getTime() : null,
+          buildDurationMs: run.updated_at ? new Date(run.updated_at).getTime() - new Date(run.run_started_at || run.created_at).getTime() : null,
+          inspectorUrl: run.html_url,
+          branch: run.head_branch,
+          commitSha: run.head_sha,
+          commitMessage: run.head_commit?.message || run.name,
+          commitAuthor: run.head_commit?.author?.name || run.actor?.login || 'github-actions',
+          repoUrl: `https://github.com/${owner}/${repo}`,
+          prId: null,
+          ghOrg: owner,
+          ghRepo: repo,
+          regions: [],
+          creator: run.actor?.login || 'github-actions',
           }
-        }
       } catch (err) {
         // Fallback to placeholder if fetch fails
       }

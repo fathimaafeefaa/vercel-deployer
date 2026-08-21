@@ -32,7 +32,6 @@ const emit = defineEmits<{
   (e: 'cancel', event: MouseEvent, uid: string): void
   (e: 'forceDeploy', event: MouseEvent, uid: string, branch: string): void
   (e: 'runGithubAction', event: MouseEvent, uid: string, branch: string): void
-  (e: 'freeDeploy', event: MouseEvent, uid: string, branch: string): void
   (e: 'openSettings'): void
   (e: 'update:collapsed', value: boolean): void
 }>()
