@@ -2,6 +2,7 @@ export interface ProjectSummary {
   id: string
   name: string
   jiraOrg: string | null
+  hasGithub: boolean
 }
 
 export function useProjects() {
@@ -36,10 +37,11 @@ export function useProjects() {
   })
 
   const currentProject = computed(() => projects.value?.find(p => p.id === currentProjectId.value) ?? null)
+  const currentProjectHasGithub = computed(() => currentProject.value?.hasGithub ?? false)
 
   function selectProject(id: string) {
     currentProjectId.value = id
   }
 
-  return { projects, pending, error, currentProjectId, currentProject, selectProject }
+  return { projects, pending, error, currentProjectId, currentProject, currentProjectHasGithub, selectProject }
 }

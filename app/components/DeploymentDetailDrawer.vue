@@ -182,11 +182,13 @@ function openLink(url: string) {
   window.open(url, '_blank', 'noopener')
 }
 
-// Path appended to the deployment host to form the shareable preview URL.
+// Path appended to the Vercel deployment host to form the shareable preview URL.
 const PREVIEW_PATH = '/auth/login?redirect=/'
-const previewUrl = computed(() =>
-  data.value ? `https://${data.value.url}${PREVIEW_PATH}` : ''
-)
+const previewUrl = computed(() => {
+  if (!data.value?.url) return ''
+  if (data.value.url.startsWith('http')) return data.value.url
+  return `https://${data.value.url}${PREVIEW_PATH}`
+})
 
 const { copiedKey: copied, copy } = useCopy()
 
@@ -279,8 +281,8 @@ onMounted(() => {
                 </span>
               </div>
               <div class="flex gap-2 shrink-0">
-                <a :href="`https://${data.url}`" target="_blank" rel="noopener" class="bg-blue-main border border-blue-main rounded-md text-white text-xs px-3 py-1.25 no-underline transition-colors hover:bg-blue-main-hover hover:border-blue-main-hover">
-                  Preview URL ↗
+                <a :href="data.url.startsWith('http') ? data.url : `https://${data.url}`" target="_blank" rel="noopener" class="bg-blue-main border border-blue-main rounded-md text-white text-xs px-3 py-1.25 no-underline transition-colors hover:bg-blue-main-hover hover:border-blue-main-hover">
+                  {{ data.uid.startsWith('gh-') ? 'View Run Logs ↗' : 'Preview URL ↗' }}
                 </a>
                 <button
                   v-if="CANCELLABLE.has(data.state?.toUpperCase())"
@@ -297,8 +299,8 @@ onMounted(() => {
             <div class="bg-page border border-border-secondary rounded-lg px-4 py-3 flex flex-col gap-2.5">
               <!-- URL -->
               <div class="flex items-center gap-4 text-xs">
-                <span class="text-text-quaternary font-medium uppercase tracking-wider w-20 shrink-0">Preview URL</span>
-                <a :href="`https://${data.url}`" target="_blank" rel="noopener" class="text-text-primary font-mono no-underline hover:underline hover:text-text-primary flex-1 truncate">{{ data.url }}</a>
+                <span class="text-text-quaternary font-medium uppercase tracking-wider w-20 shrink-0">{{ data.uid.startsWith('gh-') ? 'Run Logs' : 'Preview URL' }}</span>
+                <a :href="data.url.startsWith('http') ? data.url : `https://${data.url}`" target="_blank" rel="noopener" class="text-text-primary font-mono no-underline hover:underline hover:text-text-primary flex-1 truncate">{{ data.url }}</a>
                 <button
                   @click="copy(previewUrl, 'url')"
                   class="bg-transparent border border-border-primary rounded-sm text-text-tertiary px-1.5 py-px cursor-pointer transition-colors hover:border-border-focus hover:text-text-secondary shrink-0"

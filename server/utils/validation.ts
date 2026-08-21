@@ -33,3 +33,11 @@ export function validateUid(uid: any) {
     throw createError({ statusCode: 400, message: 'Invalid deployment UID format' })
   }
 }
+
+const VALID_WORKFLOW_RE = /^[a-zA-Z0-9_.-]+\.ya?ml$/
+
+export function validateWorkflowFile(workflow: any) {
+  if (workflow && (typeof workflow !== 'string' || !VALID_WORKFLOW_RE.test(workflow))) {
+    throw createError({ statusCode: 400, message: 'Invalid workflow file format. Must be a .yml or .yaml filename.' })
+  }
+}

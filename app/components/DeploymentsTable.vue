@@ -24,12 +24,16 @@ const props = defineProps<{
   fdErrors: Record<string, string>
   collapsed: boolean
   jiraOrg: string | null
+  hasGithub?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'inspect', uid: string): void
   (e: 'cancel', event: MouseEvent, uid: string): void
   (e: 'forceDeploy', event: MouseEvent, uid: string, branch: string): void
+  (e: 'runGithubAction', event: MouseEvent, uid: string, branch: string): void
+  (e: 'freeDeploy', event: MouseEvent, uid: string, branch: string): void
+  (e: 'openSettings'): void
   (e: 'update:collapsed', value: boolean): void
 }>()
 
@@ -45,7 +49,7 @@ function getJiraUrl(branch: string | null): string | null {
   return ticket && props.jiraOrg ? `https://${props.jiraOrg}.atlassian.net/browse/${ticket}` : null
 }
 
-function isFdBusy(uid: string): boolean {
+function isPending(uid: string): boolean {
   return props.pendingDeployments.some(d => d._originUid === uid && d.state !== 'ERROR')
 }
 
@@ -222,16 +226,17 @@ const localCollapsed = computed({
             <Icon name="logos:jira" class="h-3.5 w-3.5" />
           </div>
 
-          <!-- Deploy -->
-          <button
-            :disabled="!d.branch || !DEPLOYABLE.has(d.state?.toUpperCase()) || isFdBusy(d.uid)"
-            :title="!d.branch || !DEPLOYABLE.has(d.state?.toUpperCase()) ? 'Not available' : `Deploy ${d.branch}`"
-            @click.stop="d.branch && DEPLOYABLE.has(d.state?.toUpperCase()) && emit('forceDeploy', $event, d.uid, d.branch!)"
-            class="inline-flex items-center bg-btn border border-border-tertiary rounded-sm text-text-secondary text-xs gap-1 px-2.5 py-0.75 font-medium transition-colors hover:enabled:bg-btn-hover hover:enabled:border-border-focus hover:enabled:text-text-primary disabled:opacity-40 disabled:cursor-default"
-          >
-            <Icon name="lucide:rocket" class="h-3 w-3" />
-            <span>Deploy</span>
-          </button>
+          <!-- Deploy single arrow button -->
+          <DeployDropdown
+            :deploying="isPending(d.uid)"
+            :has-github="hasGithub"
+            :default-action="d.uid.startsWith('gh-') ? 'githubAction' : 'deploy'"
+            :disabled="!d.branch"
+            :vercel-disabled="!DEPLOYABLE.has(d.state?.toUpperCase())"
+            size="sm"
+            @deploy="d.branch && DEPLOYABLE.has(d.state?.toUpperCase()) && emit('forceDeploy', $event, d.uid, d.branch!)"
+            @run-github-action="d.branch && emit('runGithubAction', $event, d.uid, d.branch!)"
+          />
         </template>
       </div>
     </div>
@@ -418,15 +423,17 @@ const localCollapsed = computed({
                   <Icon name="logos:jira" class="h-3.75 w-3.75" />
                 </div>
 
-                <button
-                  :disabled="!d.branch || !DEPLOYABLE.has(d.state?.toUpperCase()) || isFdBusy(d.uid)"
-                  :title="!d.branch || !DEPLOYABLE.has(d.state?.toUpperCase()) ? 'Not available' : `Deploy ${d.branch}`"
-                  @click="d.branch && DEPLOYABLE.has(d.state?.toUpperCase()) && emit('forceDeploy', $event, d.uid, d.branch!)"
-                  class="inline-flex items-center bg-btn border border-border-tertiary rounded-sm text-text-secondary cursor-pointer text-[13px] gap-1.5 px-3 py-0.75 font-medium transition-colors hover:enabled:bg-btn-hover hover:enabled:border-border-focus hover:enabled:text-text-primary disabled:opacity-40 disabled:cursor-default"
-                >
-                  <Icon name="lucide:rocket" class="h-3.5 w-3.5" />
-                  <span>Deploy</span>
-                </button>
+                <!-- Deploy single arrow button -->
+                <DeployDropdown
+                  :deploying="isPending(d.uid)"
+                  :has-github="hasGithub"
+                  :default-action="d.uid.startsWith('gh-') ? 'githubAction' : 'deploy'"
+                  :disabled="!d.branch"
+                  :vercel-disabled="!DEPLOYABLE.has(d.state?.toUpperCase())"
+                  size="sm"
+                  @deploy="d.branch && DEPLOYABLE.has(d.state?.toUpperCase()) && emit('forceDeploy', $event, d.uid, d.branch!)"
+                  @run-github-action="d.branch && emit('runGithubAction', $event, d.uid, d.branch!)"
+                />
               </template>
             </div>
           </td>

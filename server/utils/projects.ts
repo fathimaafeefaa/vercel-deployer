@@ -10,6 +10,7 @@ export interface ProjectGithubConfig {
   token: string
   owner: string
   repo: string
+  workflowFile?: string
 }
 
 export interface ProjectJiraConfig {

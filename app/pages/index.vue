@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const { projects, currentProjectId, currentProject, selectProject } = useProjects()
+const { projects, currentProjectId, currentProject, currentProjectHasGithub, selectProject } = useProjects()
 
 const {
   projectName,
@@ -14,7 +14,7 @@ const {
 } = useDeployments(currentProjectId)
 
 const {
-  pendingDeployments,
+  pendingDeployments: fdPendingDeployments,
   fdErrors,
   confirmPending,
   deployBranchDialog,
@@ -25,6 +25,8 @@ const {
   resetForceDeploy,
 } = useForceDeploy(currentProjectId, deployments, refresh)
 
+const allPendingDeployments = computed(() => [...fdPendingDeployments.value, ...(ghPendingDeployments?.value || [])])
+
 const {
   search,
   filterStatus,
@@ -34,13 +36,14 @@ const {
   uniqueStatuses,
   uniqueAuthors,
   filteredDeployments,
-} = useDeploymentsFilters(currentProjectId, deployments, pendingDeployments, collapsed, inspectingUid)
+} = useDeploymentsFilters(currentProjectId, deployments, allPendingDeployments, collapsed, inspectingUid)
 
 // Switching projects (not the initial resolution) invalidates any deployment-specific view state
 watch(currentProjectId, (id, prevId) => {
   if (prevId) {
     inspectingUid.value = null
     resetForceDeploy()
+    resetDeployActions()
   }
 })
 
@@ -58,6 +61,22 @@ onMounted(() => {
 })
 
 const showSettingsModal = ref(false)
+
+const {
+  isDeploying,
+  pendingDeployments: ghPendingDeployments,
+  triggerGithubAction,
+  resetStates: resetDeployActions,
+} = useDeployActions(currentProjectId, deployments, refresh)
+
+async function handleRunGithubAction(branch?: string, uid?: string) {
+  try {
+    await triggerGithubAction(branch || 'main', undefined, undefined, uid)
+  } catch {
+    // Error state is already set inside the composable
+  }
+}
+
 </script>
 
 <template>
@@ -104,14 +123,16 @@ const showSettingsModal = ref(false)
     <DeploymentsTable
       v-else
       :deployments="filteredDeployments"
-      :pending-deployments="pendingDeployments"
+      :pending-deployments="allPendingDeployments"
       :cancelling="cancelling"
       :fd-errors="fdErrors"
       :jira-org="currentProject?.jiraOrg ?? null"
+      :has-github="currentProjectHasGithub"
       v-model:collapsed="collapsed"
       @inspect="uid => inspectingUid = uid"
       @cancel="(e, uid) => cancelDeployment(uid)"
       @force-deploy="(e, uid, branch) => forceDeploy(e, uid, branch)"
+      @run-github-action="(e, uid, branch) => handleRunGithubAction(branch, uid)"
     />
 
     <!-- Modals -->
