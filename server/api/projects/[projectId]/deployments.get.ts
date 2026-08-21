@@ -1,5 +1,5 @@
 import { defineEventHandler, getQuery, getRouterParam, createError } from 'h3'
-import { createVercelApi } from '~~/server/utils/api'
+import { createVercelApi, createGithubApi } from '~~/server/utils/api'
 import { getProjectById } from '~~/server/utils/projects'
 
 interface VercelDeployment {
@@ -26,9 +26,20 @@ export default defineEventHandler(async (event) => {
   const collapse = query.collapse === 'true' || query.collapse === '1'
 
   const vercelApi = createVercelApi(project)
-  const data = await vercelApi<VercelResponse>('/v6/deployments', {
+  const vercelPromise = vercelApi<VercelResponse>('/v6/deployments', {
     query: { limit: '75' },
-  })
+  }).catch(() => ({ deployments: [] }))
+
+  let githubPromise = Promise.resolve({ workflow_runs: [] as any[] })
+  if (project.github) {
+    const githubApi = createGithubApi(project)
+    githubPromise = githubApi<any>('/actions/runs', {
+      query: { event: 'workflow_dispatch', status: 'completed', per_page: 50 },
+    }).catch(() => ({ workflow_runs: [] }))
+  }
+
+  const [vercelData, githubData] = await Promise.all([vercelPromise, githubPromise])
+  const data = vercelData
 
   const mapped = data.deployments.map((d) => {
     const meta = d.meta ?? {}
@@ -93,12 +104,29 @@ export default defineEventHandler(async (event) => {
     }
   })
 
-  const deployments = (() => {
-    if (!collapse) return mapped
+  const ghMapped = githubData.workflow_runs.map((r: any) => ({
+    uid: `gh-run-${r.id}`,
+    state: r.conclusion === 'success' ? 'READY' : 'ERROR',
+    target: null,
+    createdAt: new Date(r.created_at).getTime(),
+    inspectorUrl: r.html_url,
+    branch: r.head_branch,
+    commitSha: r.head_sha ? r.head_sha.slice(0, 7) : null,
+    commitMessage: r.head_commit?.message || r.name,
+    commitAuthor: r.head_commit?.author?.name || r.actor?.login || 'github-actions',
+    deployer: r.actor?.login || 'github-actions',
+    prUrl: null,
+    prId: null,
+  }))
 
-    // Keep only the latest deployment per branch (Vercel returns newest-first)
+  const allDeployments = [...mapped, ...ghMapped].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+
+  const deployments = (() => {
+    if (!collapse) return allDeployments
+
+    // Keep only the latest deployment per branch
     const seen = new Set<string>()
-    return mapped.filter((d) => {
+    return allDeployments.filter((d) => {
       const key = d.branch ?? d.uid
       if (seen.has(key)) return false
       seen.add(key)
